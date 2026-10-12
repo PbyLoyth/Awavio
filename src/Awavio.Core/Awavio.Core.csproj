@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Platform-neutral session logic. No Windows APIs here, so it builds and
+       tests on any OS. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Awavio.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

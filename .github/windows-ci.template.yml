@@ -1,0 +1,48 @@
+name: Windows
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Test core
+        run: dotnet test tests/Awavio.Core.Tests -c Release
+      - name: Build native test and design renderer
+        run: |
+          dotnet build tests/Awavio.Windows.Smoke -c Release
+          dotnet build tools/Awavio.DesignCapture -c Release
+      - name: Test native duration controls
+        run: dotnet run --project tests/Awavio.Windows.Smoke -c Release --no-build -- --ui-only
+      - name: Package Windows x64
+        shell: pwsh
+        run: ./scripts/package.ps1
+      - name: Test uninstall guard
+        shell: pwsh
+        run: ./tests/test-uninstall.ps1
+      - name: Test binary install and update guard
+        shell: pwsh
+        run: ./tests/test-install.ps1
+      - name: Parse scripts and recover without a session
+        shell: pwsh
+        run: |
+          foreach ($file in Get-ChildItem scripts/*.ps1, tests/*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { throw "$($file.Name): $errors" }
+          }
+          $env:AWAVIO_HOME = Join-Path $env:RUNNER_TEMP 'awavio-smoke'
+          $p = Start-Process artifacts/publish/win-x64/Awavio.exe -ArgumentList '--recover' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Recovery failed: $($p.ExitCode)" }
